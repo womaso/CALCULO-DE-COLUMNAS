@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verificación de columnas: canales y costaneras</title>
+<style>
+:root{--bg:#f3f1ec;--panel:#fff;--ink:#1d2a33;--mute:#5d6b75;--line:#cfd6db;--acc:#0b5c7a;--ok:#1b6e3c;--okbg:#dff1e5;--no:#a3261b;--nobg:#f9e0dd}
+@media (prefers-color-scheme:dark){:root{--bg:#14191d;--panel:#1d252b;--ink:#e6ebee;--mute:#9aa8b1;--line:#34424b;--acc:#5ec0e0;--ok:#7fd69d;--okbg:#16361f;--no:#ff9a8f;--nobg:#42201c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Segoe UI",system-ui,sans-serif;padding:20px 14px 40px}
+main{max-width:760px;margin:0 auto}
+h1{font-family:Georgia,"Times New Roman",serif;font-size:1.7rem;margin:0 0 4px}
+.sub{color:var(--mute);margin:0 0 22px}
+#f,.res{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:18px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:560px){.grid{grid-template-columns:1fr}}
+label{display:block;font-weight:600;font-size:.92rem;margin-bottom:4px}
+select,input{width:100%;padding:9px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:4px}
+select:focus,input:focus,button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+.full{grid-column:1/-1}
+.kv{font-size:.9rem;color:var(--mute);margin-top:4px}
+button{margin-top:16px;width:100%;padding:12px;font:inherit;font-weight:700;color:#fff;background:var(--acc);border:0;border-radius:4px;cursor:pointer}
+@media (prefers-color-scheme:dark){button{color:#0b1114}}
+.res{margin-top:18px}
+.res h2{font-size:1.1rem;margin:0 0 8px}
+table{width:100%;border-collapse:collapse;margin:6px 0 14px}
+td{padding:6px 4px;border-bottom:1px solid var(--line)}
+td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.v{padding:10px 12px;border-radius:4px;font-weight:700;margin-bottom:12px}
+.v.ok{background:var(--okbg);color:var(--ok)}.v.no{background:var(--nobg);color:var(--no)}
+.note{font-size:.82rem;color:var(--mute);margin-top:18px}
+</style>
+</head>
+<body>
+<main>
+<h1>Verificación de columnas</h1>
+<p class="sub">Canales y costaneras de acero A36. Indica el perfil, la longitud, los apoyos y la carga para saber si el perfil resiste.</p>
+
+<div id="f">
+<div class="grid">
+<div><label for="tipo">Tipo de perfil</label>
+<select id="tipo"><option value="c">Canales</option><option value="k">Costaneras</option></select></div>
+<div><label for="perfil">Dimensiones (mm)</label><select id="perfil"></select></div>
+<div><label for="L">Longitud (cm)</label><input id="L" type="number" min="1" step="any" value="300" ></div>
+<div><label for="P">Carga solicitada (kg)</label><input id="P" type="number" min="0" step="any" value="5000" ></div>
+<div class="full"><label for="apoyo">Condición de los apoyos</label>
+<select id="apoyo">
+<option value="1.0">Articulado en ambos extremos</option>
+<option value="0.5">Empotrado en ambos extremos</option>
+<option value="0.7">Empotrado en un extremo y articulado en el otro</option>
+<option value="2.0">Empotrado en un extremo y libre en el otro</option>
+</select>
+<div class="kv" id="kshow"></div></div>
+</div>
+<button type="button" id="go">Calcular y evaluar</button>
+</div>
+
+<div id="out"></div>
+<p class="note">Material: acero A36 (Fy = 2540 kg/cm², E = 2.1×10⁶ kg/cm²). Se asume una sección doble (2 perfiles), como en el cálculo original. Herramienta didáctica: no reemplaza la verificación de un ingeniero.</p>
+</main>
+
+<script>
+const FY=2540,E=2.1e6;
+// "dimensiones,peso kg/m,área cm²,ry cm"
+const DB={
+c:`30 x 30 x 2.0,1.29,1.64,0.97|50 x 25 x 2.0,1.44,1.84,0.78|50 x 25 x 3.0,2.07,2.64,0.77|80 x 20 x 2.0,1.76,2.24,0.55|80 x 40 x 2.0,2.39,3.04,1.27|80 x 40 x 3.0,3.49,4.44,1.25|80 x 40 x 4.0,4.52,5.76,1.24|80 x 40 x 5.0,5.50,7.00,1.23|100 x 50 x 2.0,3.01,3.84,1.59|100 x 50 x 3.0,4.43,5.64,1.58|100 x 50 x 4.0,5.78,7.36,1.57|100 x 50 x 5.0,7.07,9.00,1.55|125 x 50 x 2.0,3.41,4.34,1.55|125 x 50 x 3.0,5.02,6.39,1.53|125 x 50 x 4.0,6.56,8.36,1.52|125 x 50 x 5.0,8.05,10.25,1.51|150 x 50 x 2.0,3.80,4.84,1.50|150 x 50 x 3.0,5.60,7.14,1.49|150 x 50 x 4.0,7.35,9.36,1.48|150 x 50 x 5.0,9.03,11.50,1.47|175 x 50 x 2.0,4.19,5.34,1.45|175 x 50 x 3.0,6.19,7.89,1.45|175 x 50 x 4.0,8.13,10.36,1.44|175 x 50 x 5.0,10.01,12.75,1.42|200 x 50 x 2.0,4.58,5.84,1.42|200 x 50 x 3.0,6.78,8.64,1.41|200 x 50 x 4.0,8.92,11.36,1.39|200 x 50 x 5.0,10.99,14.00,1.38|250 x 50 x 2.0,5.37,6.84,1.34|250 x 50 x 3.0,7.96,10.14,1.33|250 x 50 x 4.0,10.49,13.36,1.32|250 x 50 x 5.0,12.95,16.50,1.31`,
+k:`50 x 30 x 10 x 2.0,1.79,2.28,1.08|50 x 30 x 10 x 3.0,2.50,3.18,1.03|60 x 25 x 10 x 2.0,1.79,2.28,0.89|60 x 25 x 10 x 3.0,2.50,3.18,0.84|72 x 34 x 14 x 2.0,2.39,3.04,1.27|72 x 34 x 14 x 3.0,3.39,4.32,1.22|50 x 55 x 15 x 2.0,2.73,3.48,2.01|50 x 56 x 15 x 3.0,3.91,4.98,1.96|80 x 40 x 15 x 2.0,2.73,3.48,1.50|80 x 40 x 15 x 3.0,3.91,4.98,1.44|80 x 40 x 15 x 4.0,4.96,6.32,1.39|100 x 30 x 10 x 2.0,2.57,3.28,1.02|100 x 30 x 10 x 3.0,3.67,4.68,0.96|100 x 30 x 10 x 4.0,4.65,5.92,0.90|100 x 50 x 15 x 2.0,3.36,4.28,1.84|100 x 50 x 15 x 3.0,4.85,6.18,1.78|100 x 50 x 15 x 4.0,6.22,7.92,1.72|125 x 50 x 15 x 2.0,3.75,4.78,1.81|125 x 50 x 15 x 3.0,5.44,6.93,1.75|125 x 50 x 15 x 4.0,7.00,8.92,1.69|150 x 50 x 15 x 2.0,4.14,5.28,1.78|150 x 50 x 15 x 3.0,6.03,7.68,1.72|150 x 50 x 15 x 4.0,7.79,9.92,1.65|200 x 50 x 15 x 2.0,4.93,6.28,1.70|200 x 50 x 15 x 3.0,7.21,9.18,1.64|200 x 50 x 15 x 4.0,9.36,11.92,1.57`};
+const parse=s=>s.split("|").map(r=>{const p=r.split(",");return{dim:p[0],peso:+p[1],area:+p[2],ry:+p[3]}});
+const LIB={c:parse(DB.c),k:parse(DB.k)};
+const $=id=>document.getElementById(id);
+const n=(x,d=2)=>x.toLocaleString("es-BO",{minimumFractionDigits:d,maximumFractionDigits:d});
+
+function fillPerfiles(){
+  $("perfil").innerHTML=LIB[$("tipo").value].map((p,i)=>`<option value="${i}">${p.dim}</option>`).join("");
+}
+function showK(){$("kshow").textContent="Factor k aplicado: "+$("apoyo").value}
+$("tipo").addEventListener("change",fillPerfiles);
+$("apoyo").addEventListener("change",showK);
+fillPerfiles();showK();
+
+function corta(area,P){const Pa=0.66*FY*2*area;return{Pa,ok:Pa>=P}}
+function larga(k,L,ry,area,P){
+  const lc=(k*L)/(Math.PI*ry)*Math.sqrt(FY/E);
+  const Fer=lc<=1.5?Math.pow(0.658,lc*lc)*FY:(0.877/(lc*lc))*FY;
+  const Pa=0.85*Fer*2*area;
+  return{lc,Fer,Pa,ok:Pa>=P};
+}
+const veredicto=(ok,Pa,P)=>`<div class="v ${ok?"ok":"no"}">${ok?"ES APTO":"NO ES APTO"}: carga admisible ${n(Pa)} kg ${ok?"≥":"<"} carga solicitada ${n(P)} kg</div>`;
+
+$("go").addEventListener("click",()=>{
+  const p=LIB[$("tipo").value][+$("perfil").value];
+  const L=+$("L").value,P=+$("P").value,k=+$("apoyo").value;
+  if(!(L>0)||!(P>=0)||$("L").value===""||$("P").value===""){$("out").innerHTML='<div class="res"><div class="v no">Ingresa una longitud mayor que 0 y una carga válida.</div></div>';return}
+  const lam=k*L/p.ry;
+  const clase=lam<=50?"Columna baja":lam<=120?"Columna intermedia":"Columna larga";
+  let h=`<div class="res"><h2>${$("tipo").value==="c"?"Canal":"Costanera"} ${p.dim}</h2>
+  <table>
+  <tr><td>Área (por perfil)</td><td>${n(p.area)} cm²</td></tr>
+  <tr><td>Peso</td><td>${n(p.peso)} kg/m</td></tr>
+  <tr><td>Radio de giro ry</td><td>${n(p.ry)} cm</td></tr>
+  <tr><td>Longitud · factor k</td><td>${n(L,0)} cm · ${k}</td></tr>
+  <tr><td>Relación de esbeltez λ = kL/ry</td><td>${n(lam)}</td></tr>
+  <tr><td>Clasificación</td><td><b>${clase}</b></td></tr></table>`;
+  if(clase!=="Columna larga"){
+    const c=corta(p.area,P);
+    h+=`<h2>Como columna corta</h2><table><tr><td>Carga admisible P = 0.66·Fy·2A</td><td>${n(c.Pa)} kg</td></tr></table>`+veredicto(c.ok,c.Pa,P);
+  }
+  if(clase!=="Columna baja"){
+    const l=larga(k,L,p.ry,p.area,P);
+    h+=`<h2>Como columna larga</h2><table>
+    <tr><td>λc</td><td>${n(l.lc,4)}</td></tr>
+    <tr><td>Esfuerzo crítico Fer</td><td>${n(l.Fer)} kg/cm²</td></tr>
+    <tr><td>Carga admisible P = 0.85·Fer·2A</td><td>${n(l.Pa)} kg</td></tr></table>`+veredicto(l.ok,l.Pa,P);
+  }
+  $("out").innerHTML=h+"</div>";
+  $("out").scrollIntoView({behavior:"smooth",block:"start"});
+});
+</script>
+</body>
+</html>
